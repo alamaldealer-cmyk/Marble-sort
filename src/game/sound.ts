@@ -42,6 +42,30 @@ class SoundSystem {
     osc.stop(now + 0.09);
   }
 
+  playBlocked() {
+    if (!this.enabled) return;
+    this.initCtx();
+    if (!this.ctx) return;
+
+    const now = this.ctx.currentTime;
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+
+    // Gentle, subtle wooden thud indicating limit reached / no more balls right now
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(200, now);
+    osc.frequency.exponentialRampToValueAtTime(75, now + 0.11);
+
+    gain.gain.setValueAtTime(0.22, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.11);
+
+    osc.connect(gain);
+    gain.connect(this.ctx.destination);
+
+    osc.start(now);
+    osc.stop(now + 0.11);
+  }
+
   playPopBurst() {
     if (!this.enabled) return;
     this.initCtx();

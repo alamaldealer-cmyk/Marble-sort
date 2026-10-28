@@ -107,29 +107,30 @@ export const COLOR_CONFIG: Record<
 
 // UI and layout colors
 export const THEME = {
-  background: '#56A9B4',
-  glassFill: '#93D8E4',
-  glassBorder: '#427E8E',
-  glassInnerRim: '#BFE8F0',
-  gridBoardBg: '#B9CCE0',
-  gridBoardOutline: '#D2E1EF',
-  funnelFill: '#C7D2EB',
-  funnelBorder: '#427E8E',
-  neckBorder: '#427E8E',
-  beltHousingFill: '#C7D2EB',
-  beltHousingBorder: '#427E8E',
-  beltRim: '#EEF0FA',
-  beltTrack: '#6E6E7E',
-  beltSlot: '#5F5F6E',
-  beltDivider: '#EFEDFB',
-  lockedTile: '#5E7488',
-  lockedTileBorder: '#445564',
-  dispenserBlue: '#6B96DC',
-  dispenserBorder: '#4871B5',
-  coinPill: '#9A7AE6',
-  levelPill: '#9A7AE6',
+  background: '#10011E',
+  glassFill: 'rgba(255, 255, 255, 0.08)',
+  glassBorder: '#E5C158',
+  glassInnerRim: 'rgba(255, 240, 180, 0.45)',
+  gridBoardBg: 'rgba(32, 8, 62, 0.55)',
+  gridBoardOutline: '#E5C158',
+  funnelFill: 'rgba(215, 225, 245, 0.18)',
+  funnelBorder: '#E5C158',
+  neckBorder: '#E5C158',
+  beltHousingFill: '#240A42',
+  beltHousingBorder: '#E5C158',
+  beltRim: '#FFE494',
+  beltTrack: '#4B3666',
+  beltSlot: '#34224A',
+  beltDivider: '#FFE8A3',
+  lockedTile: '#4E3668',
+  lockedTileBorder: '#35214D',
+  dispenserBlue: '#5C38A6',
+  dispenserBorder: '#E5C158',
+  coinPill: '#3D156E',
+  levelPill: '#3D156E',
+  goldBorder: '#F5D061',
   powerUpGreen: '#2EB55A',
-  powerUpBorder: '#1A7A38',
+  powerUpBorder: '#D4AF37',
   badgeRed: '#E93D5A',
 };
 
@@ -143,27 +144,35 @@ export const CELL_RADIUS = 7;
 export const CELL_PITCH_X = 35;
 export const CELL_PITCH_Y = 33;
 export const GRID_X_CENTERS = [60, 95, 130, 165, 200, 235];
-export const GRID_Y_CENTERS = [250, 283, 318, 350, 383, 415];
-export const EXIT_ROW = 5; // y=415
+export const GRID_Y_CENTERS = [238, 271, 305, 338, 371, 404];
+export const EXIT_ROW = 5; // y=404
+
+// Cyber Frame layout bounds
+export const CYBER_FRAME = {
+  width: 284,
+  height: 426,
+  x: 6,
+  y: 154.5,
+};
 
 // Glass container bounds
 export const GLASS_CONTAINER = {
   x: 8,
-  y: 182,
+  y: 169,
   width: 272,
-  height: 250, // bottom at 432
+  height: 270,
   topRadius: 32,
 };
 
-// Funnel geometry
+// Funnel geometry aligned with cyber frame slopes
 export const FUNNEL = {
-  leftWall: { x1: 12, y1: 438, x2: 128, y2: 487 },
-  rightWall: { x1: 284, y1: 438, x2: 166, y2: 487 },
-  neckX1: 128,
-  neckX2: 166,
-  neckY1: 487,
-  neckY2: 497,
-  feedX: 147,
+  leftWall: { x1: 24, y1: 440, x2: 127, y2: 488 },
+  rightWall: { x1: 271, y1: 440, x2: 168, y2: 488 },
+  neckX1: 127,
+  neckX2: 168,
+  neckY1: 488,
+  neckY2: 506,
+  feedX: 147.5,
   feedY: 508,
 };
 
@@ -183,12 +192,33 @@ export const BELT_GEOM = {
   },
 };
 
-// Brick Columns (PAGE 9)
+// Sci-Fi Slotbar UI Frame & Balti Layout (4 Docking Slots)
 export const BRICK_COLUMNS_X = [65, 120, 175, 230];
-export const BRICK_WIDTH = 50;
-export const BRICK_TOP_HEIGHT = 20;
+export const SLOTBAR_FRAME = {
+  x: 25,
+  y: 562,
+  width: 245,
+  height: 38.6,
+};
+export const BALTI_WIDTH = 42;
+export const BALTI_HEIGHT = 44;
+export const BALTI_TOP_Y = 554;
+export const BALTI_SOCKET_Y = 569;
+export const BRICK_TOP_Y = BALTI_SOCKET_Y;
+export const BRICK_WIDTH = BALTI_WIDTH;
+export const BRICK_TOP_HEIGHT = BALTI_HEIGHT;
 export const BRICK_STACK_PITCH = 23;
-export const BRICK_TOP_Y = 548;
-export const BRICK_HOLE_OFFSETS = [-14, 0, 14];
+export const BRICK_HOLE_OFFSETS = [-11, 0, 11];
 export const BRICK_HOLE_DIAMETER = 12;
 export const MATCH_X_TOLERANCE = 25; // |ball.x - col.x| <= 25
+
+export const RAILING_PLATFORM = {
+  x: 25,
+  y: 562,
+  width: 245,
+  height: 38.6,
+  railY1: 568,
+  railY2: 594,
+};
+
+

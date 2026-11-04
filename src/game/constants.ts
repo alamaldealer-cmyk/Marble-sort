@@ -21,8 +21,8 @@ export const BRICK_HOLES = 3;
 export const MAX_WAITING_BALLS = 45; // Max balls in funnel before locking taps
 export const RESUME_WAITING_BALLS = 40; // Funnel count must drop below 40 to resume taps
 
-export const BALL_RADIUS_FUNNEL = 7;
-export const BALL_RADIUS_BELT = 6;
+export const BALL_RADIUS_FUNNEL = 7.5;
+export const BALL_RADIUS_BELT = 7.0;
 export const MIN_DROP_INTERVAL_MS = 60; // Har column ke liye min 60ms gap
 
 // ==========================================
@@ -41,27 +41,27 @@ export const COLOR_CONFIG: Record<
 > = {
   purple: {
     name: 'Purple',
-    hex: '#7B3FE4',
-    dark: '#5821A8',
-    border: '#44148B',
-    highlight: '#B894FA',
-    dot: '#612ABC',
+    hex: '#7F24FF',
+    dark: '#5208B8',
+    border: '#36047A',
+    highlight: '#D8B8FF',
+    dot: '#6E1CDE',
   },
   pink: {
     name: 'Pink',
-    hex: '#FF8FD6',
-    dark: '#D757A7',
-    border: '#AD2D7E',
-    highlight: '#FFD3F0',
-    dot: '#DB67B0',
+    hex: '#FD26C6',
+    dark: '#C40893',
+    border: '#8A0366',
+    highlight: '#FFE0F6',
+    dot: '#E017AC',
   },
   ice: {
     name: 'Ice White',
-    hex: '#E6F4FA',
-    dark: '#A6C8DC',
-    border: '#7FA9C2',
+    hex: '#EBEBEF',
+    dark: '#A4A8B8',
+    border: '#727687',
     highlight: '#FFFFFF',
-    dot: '#BFDCEB',
+    dot: '#D0D4E2',
   },
   yellow: {
     name: 'Yellow',
@@ -152,7 +152,7 @@ export const CYBER_FRAME = {
   width: 284,
   height: 426,
   x: 6,
-  y: 154.5,
+  y: 154,
 };
 
 // Glass container bounds

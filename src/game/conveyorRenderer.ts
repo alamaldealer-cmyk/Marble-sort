@@ -77,7 +77,8 @@ export class ConveyorBeltRenderer {
     scrollDistance: number,
     currentTime: number,
     balls: BeltBall[] = [],
-    drawHousing: boolean = false
+    drawHousing: boolean = false,
+    ballImgs?: Partial<Record<MarbleColor, HTMLImageElement>>
   ) {
     ctx.save();
 
@@ -102,7 +103,7 @@ export class ConveyorBeltRenderer {
     this.renderDividerRail(ctx);
 
     // 6. Moving Ball Sockets & Locked Nested Marbles (100% exact alignment)
-    this.renderMovingBallSockets(ctx, scrollDistance, balls);
+    this.renderMovingBallSockets(ctx, scrollDistance, balls, ballImgs);
 
     // 7. Subtle Flow Chevrons (<< on top lane, >> on bottom lane)
     this.renderFlowChevrons(ctx, scrollDistance);
@@ -295,7 +296,8 @@ export class ConveyorBeltRenderer {
   private renderMovingBallSockets(
     ctx: CanvasRenderingContext2D,
     scrollDistance: number,
-    balls: BeltBall[]
+    balls: BeltBall[],
+    ballImgs?: Partial<Record<MarbleColor, HTMLImageElement>>
   ) {
     ctx.save();
 
@@ -319,10 +321,10 @@ export class ConveyorBeltRenderer {
       ctx.translate(coords.x, coords.y);
       ctx.rotate(angle);
 
-      // (A) Socket Concave Base: Crater radius 6.5px (snugly embraces 6px ball)
+      // (A) Socket Concave Base: Crater radius 7.2px (snugly embraces ball)
       ctx.fillStyle = '#22222E';
       ctx.beginPath();
-      ctx.arc(0, 0, 6.5, 0, Math.PI * 2);
+      ctx.arc(0, 0, 7.2, 0, Math.PI * 2);
       ctx.fill();
 
       // Deep crater rim border
@@ -331,25 +333,34 @@ export class ConveyorBeltRenderer {
       ctx.stroke();
 
       // Inner shadow depth
-      const innerGrad = ctx.createRadialGradient(0, -1, 1, 0, 0, 6);
+      const innerGrad = ctx.createRadialGradient(0, -1, 1, 0, 0, 6.8);
       innerGrad.addColorStop(0, 'rgba(0, 0, 0, 0.45)');
       innerGrad.addColorStop(1, 'rgba(0, 0, 0, 0.9)');
       ctx.fillStyle = innerGrad;
       ctx.beginPath();
-      ctx.arc(0, 0, 6, 0, Math.PI * 2);
+      ctx.arc(0, 0, 6.8, 0, Math.PI * 2);
       ctx.fill();
 
       // Lower rim bevel highlight
       ctx.strokeStyle = 'rgba(255, 255, 255, 0.16)';
       ctx.lineWidth = 1;
       ctx.beginPath();
-      ctx.arc(0, 0.5, 6, Math.PI * 0.2, Math.PI * 0.8);
+      ctx.arc(0, 0.5, 6.8, Math.PI * 0.2, Math.PI * 0.8);
       ctx.stroke();
 
       // (B) IF A BALL IS IN THIS SLOT, DRAW IT AT THE EXACT SAME (0, 0) CENTER!
       const ball = ballBySlot.get(i);
       if (ball) {
-        this.drawGlossyMarble(ctx, 0, 0, BALL_RADIUS_BELT, ball.color, ball.scale);
+        const ballImg = ballImgs?.[ball.color];
+        if (ballImg && ballImg.complete && ballImg.naturalWidth > 0) {
+          ctx.save();
+          if (ball.scale !== 1.0) ctx.scale(ball.scale, ball.scale);
+          const size = BALL_RADIUS_BELT * 2.45;
+          ctx.drawImage(ballImg, -size / 2, -size / 2, size, size);
+          ctx.restore();
+        } else {
+          this.drawGlossyMarble(ctx, 0, 0, BALL_RADIUS_BELT, ball.color, ball.scale);
+        }
       }
 
       ctx.restore();

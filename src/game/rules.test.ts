@@ -13,11 +13,20 @@ import {
   isSOnBottomLane,
 } from './beltPath';
 import { BRICK_COLUMNS_X, GRID_COLS, GRID_ROWS } from './constants';
-import { getLevel1, getLevel35 } from './levels';
+import {
+  getLevel1,
+  getLevel2,
+  getLevel3,
+  getLevel4,
+  getLevel5,
+  getLevel35,
+  generateSolvableLevel,
+} from './levels';
 import {
   isExposed,
   isLevelWon,
   shouldBlockBlockTap,
+  performShufflePowerup,
   tapCell,
   tryMatchBeltBall,
   updateGridAfterChange,
@@ -43,7 +52,20 @@ test('Backlog limit rule: blocks tap at >= 45 balls, stays locked until < 40 bal
   assert.equal(shouldBlockBlockTap(20, false), false);
 });
 
-test('Level 35 satisfies exact solvability rule (blocks * 9 == bricks * 3)', () => {
+test('Handcrafted Levels 1 to 5 satisfy exact solvability (blocks * 9 == bricks * 3)', () => {
+  const levels = [getLevel1(), getLevel2(), getLevel3(), getLevel4(), getLevel5()];
+  levels.forEach((lvl, idx) => {
+    const validation = validateLevelSolvability(lvl);
+    assert.equal(
+      validation.isSolvable,
+      true,
+      `Level ${idx + 1} has solvability error: ${validation.mismatches.join(', ')}`
+    );
+    assert.equal(validation.mismatches.length, 0);
+  });
+});
+
+test('Level 35 benchmark satisfies exact solvability rule (blocks * 9 == bricks * 3)', () => {
   const level35 = getLevel35();
   const validation = validateLevelSolvability(level35);
   assert.equal(
@@ -54,10 +76,41 @@ test('Level 35 satisfies exact solvability rule (blocks * 9 == bricks * 3)', () 
   assert.equal(validation.mismatches.length, 0);
 });
 
-test('Level 1 satisfies exact solvability rule', () => {
-  const level1 = getLevel1();
-  const validation = validateLevelSolvability(level1);
-  assert.equal(validation.isSolvable, true);
+test('Procedural levels across all difficulty tiers satisfy exact solvability without missing or extra balls/buckets', () => {
+  const testLevelNumbers = [6, 7, 8, 9, 10, 12, 15, 18, 20, 25, 30, 36, 42, 50, 100];
+  for (const num of testLevelNumbers) {
+    const levelData = generateSolvableLevel(num);
+    const validation = validateLevelSolvability(levelData);
+    assert.equal(
+      validation.isSolvable,
+      true,
+      `Procedural Level ${num} failed solvability: ${validation.mismatches.join(', ')}`
+    );
+    assert.equal(validation.mismatches.length, 0);
+
+    // Verify each column has bricks and columns count is 4
+    assert.equal(levelData.columns.length, 4);
+    assert.ok(levelData.columns.every((c) => c.length > 0));
+
+    // Verify total balls strictly equals total holes
+    let totalBlocks = 0;
+    for (const row of levelData.grid) {
+      for (const cell of row) {
+        if (cell.kind === 'block' && cell.color) totalBlocks++;
+        else if (cell.kind === 'locked' && cell.color) totalBlocks++;
+        else if (cell.kind === 'dispenser' && cell.queue) totalBlocks += cell.queue.length;
+      }
+    }
+    let totalBuckets = 0;
+    for (const col of levelData.columns) {
+      totalBuckets += col.length;
+    }
+    assert.equal(
+      totalBlocks * 9,
+      totalBuckets * 3,
+      `Level ${num} total balls (${totalBlocks * 9}) != total bucket holes (${totalBuckets * 3})`
+    );
+  }
 });
 
 test('Exposed rule: row 5 exit row is always exposed, surrounded cells are not, walls do not expose', () => {
@@ -232,4 +285,67 @@ test('FunnelPhysics simulates gravity, wall containment, and gate release', asyn
   assert.equal(fedBall.color, 'purple');
   assert.equal(physics.balls.length, 8);
 });
+
+test('Shuffle power-up brings forward queued buckets matching balls on the conveyor belt', () => {
+  // Columns setup: 4 columns with queued buckets
+  const columns: BrickColumn[] = [
+    {
+      x: 58,
+      lastDropTime: 0,
+      shiftOffsetY: 0,
+      bricks: [
+        { color: 'ice', filled: 0, inFlight: 0 },
+        { color: 'purple', filled: 0, inFlight: 0 },
+      ],
+    },
+    {
+      x: 118,
+      lastDropTime: 0,
+      shiftOffsetY: 0,
+      bricks: [
+        { color: 'lime', filled: 0, inFlight: 0 },
+        { color: 'cyan', filled: 0, inFlight: 0 },
+      ],
+    },
+    {
+      x: 178,
+      lastDropTime: 0,
+      shiftOffsetY: 0,
+      bricks: [
+        { color: 'pink', filled: 1, inFlight: 0 }, // partially filled: should NOT be swapped!
+        { color: 'red', filled: 0, inFlight: 0 },
+      ],
+    },
+    {
+      x: 238,
+      lastDropTime: 0,
+      shiftOffsetY: 0,
+      bricks: [
+        { color: 'yellow', filled: 0, inFlight: 0 },
+        { color: 'red', filled: 0, inFlight: 0 },
+      ],
+    },
+  ];
+
+  // Belt currently has purple balls and red balls circulating
+  const beltBalls = [
+    { color: 'purple' as const },
+    { color: 'purple' as const },
+    { color: 'red' as const },
+  ];
+
+  const result = performShufflePowerup(columns, beltBalls);
+  assert.equal(result.shuffled, true);
+
+  // Col 0 should have brought purple to the front!
+  assert.equal(columns[0].bricks[0].color, 'purple');
+
+  // Col 2 (partially filled pink) must NOT have been touched!
+  assert.equal(columns[2].bricks[0].color, 'pink');
+  assert.equal(columns[2].bricks[0].filled, 1);
+
+  // Col 3 should have brought red to the front!
+  assert.equal(columns[3].bricks[0].color, 'red');
+});
+
 

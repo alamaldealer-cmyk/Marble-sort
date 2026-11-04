@@ -51,6 +51,7 @@ import { FunnelPhysics } from '../game/physics';
 import {
   isExposed,
   isLevelWon,
+  performShufflePowerup,
   shouldBlockBlockTap,
   tapCell,
   tryMatchBeltBall,
@@ -58,6 +59,7 @@ import {
 } from '../game/rules';
 import { conveyorRenderer } from '../game/conveyorRenderer';
 import { sounds } from '../game/sound';
+import { drawBucketCell, getBucketFrameIndex, ANIM_DURATIONS } from '../game/bucketAnimation';
 import {
   BeltBall,
   BrickColumn,
@@ -93,9 +95,98 @@ import railBucketCyan from '../assets/images/rail_buckets/bucket_cyan.png';
 import railBucketOrange from '../assets/images/rail_buckets/bucket_orange.png';
 import railBucketRed from '../assets/images/rail_buckets/bucket_red.png';
 
+// Sci-Fi Open Containers (empty containers with 9 sockets inside for the 9 marbles)
+import crateOpenPurple from '../assets/images/crates/crate_open_purple.png';
+import crateOpenPink from '../assets/images/crates/crate_open_pink.png';
+import crateOpenIce from '../assets/images/crates/crate_open_ice.png';
+import crateOpenYellow from '../assets/images/crates/crate_open_yellow.png';
+import crateOpenLime from '../assets/images/crates/crate_open_lime.png';
+import crateOpenCyan from '../assets/images/crates/crate_open_cyan.png';
+import crateOpenOrange from '../assets/images/crates/crate_open_orange.png';
+import crateOpenRed from '../assets/images/crates/crate_open_red.png';
+
+// Sci-Fi Closed Crates (closed containers with glowing cyber lids for locked upper blocks)
+import crateClosedPurple from '../assets/images/crates/crate_closed_purple.png';
+import crateClosedPink from '../assets/images/crates/crate_closed_pink.png';
+import crateClosedIce from '../assets/images/crates/crate_closed_ice.png';
+import crateClosedYellow from '../assets/images/crates/crate_closed_yellow.png';
+import crateClosedLime from '../assets/images/crates/crate_closed_lime.png';
+import crateClosedCyan from '../assets/images/crates/crate_closed_cyan.png';
+import crateClosedOrange from '../assets/images/crates/crate_closed_orange.png';
+import crateClosedRed from '../assets/images/crates/crate_closed_red.png';
+import crateMysterySrc from '../assets/images/crates/crate_mystery.png';
+
 // Sci-Fi Slotbar UI Frame (Lights ON & OFF)
 import slotbarLightsOnSrc from '../assets/images/slotbar/slotbar_lights_on.png';
 import slotbarLightsOffSrc from '../assets/images/slotbar/slotbar_lights_off.png';
+
+// Sci-Fi Frame Light animation frames (8 frames from user spritesheet)
+import frameLight0 from '../assets/images/frame_lights/frame_0.png';
+import frameLight1 from '../assets/images/frame_lights/frame_1.png';
+import frameLight2 from '../assets/images/frame_lights/frame_2.png';
+import frameLight3 from '../assets/images/frame_lights/frame_3.png';
+import frameLight4 from '../assets/images/frame_lights/frame_4.png';
+import frameLight5 from '../assets/images/frame_lights/frame_5.png';
+import frameLight6 from '../assets/images/frame_lights/frame_6.png';
+import frameLight7 from '../assets/images/frame_lights/frame_7.png';
+
+const FRAME_LIGHT_SRCS = [
+  frameLight0,
+  frameLight1,
+  frameLight2,
+  frameLight3,
+  frameLight4,
+  frameLight5,
+  frameLight6,
+  frameLight7,
+];
+
+// Animated Cave Dispenser frames (16 frames from user spritesheet)
+import cave0 from '../assets/images/cave/cave_0.png';
+import cave1 from '../assets/images/cave/cave_1.png';
+import cave2 from '../assets/images/cave/cave_2.png';
+import cave3 from '../assets/images/cave/cave_3.png';
+import cave4 from '../assets/images/cave/cave_4.png';
+import cave5 from '../assets/images/cave/cave_5.png';
+import cave6 from '../assets/images/cave/cave_6.png';
+import cave7 from '../assets/images/cave/cave_7.png';
+import cave8 from '../assets/images/cave/cave_8.png';
+import cave9 from '../assets/images/cave/cave_9.png';
+import cave10 from '../assets/images/cave/cave_10.png';
+import cave11 from '../assets/images/cave/cave_11.png';
+import cave12 from '../assets/images/cave/cave_12.png';
+import cave13 from '../assets/images/cave/cave_13.png';
+import cave14 from '../assets/images/cave/cave_14.png';
+import cave15 from '../assets/images/cave/cave_15.png';
+
+const CAVE_FRAME_SRCS = [
+  cave0,
+  cave1,
+  cave2,
+  cave3,
+  cave4,
+  cave5,
+  cave6,
+  cave7,
+  cave8,
+  cave9,
+  cave10,
+  cave11,
+  cave12,
+  cave13,
+  cave14,
+  cave15,
+];
+
+// Glossy 3D Sphere Ball Sprites cropped from user sprite sheet
+import ballPurple from '../assets/images/balls/ball_purple.png';
+import ballPink from '../assets/images/balls/ball_pink.png';
+import ballIce from '../assets/images/balls/ball_ice.png';
+import ballYellow from '../assets/images/balls/ball_yellow.png';
+import ballLime from '../assets/images/balls/ball_lime.png';
+import ballCyan from '../assets/images/balls/ball_cyan.png';
+import ballOrange from '../assets/images/balls/ball_orange.png';
+import ballRed from '../assets/images/balls/ball_red.png';
 
 // Shift everything slightly up to create space below for the new buckets and railing
 const ARENA_SHIFT_Y = -42;
@@ -119,7 +210,7 @@ interface GameBoardProps {
   levelNumber?: number;
 }
 
-export const GameBoard: React.FC<GameBoardProps> = ({ levelNumber = 35 }) => {
+export const GameBoard: React.FC<GameBoardProps> = ({ levelNumber = 1 }) => {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
@@ -132,10 +223,23 @@ export const GameBoard: React.FC<GameBoardProps> = ({ levelNumber = 35 }) => {
   const [pauseButtonState, setPauseButtonState] = useState<'normal' | 'hover' | 'pressed'>('normal');
   const [soundMuted, setSoundMuted] = useState<boolean>(false);
   const [powerupCounts, setPowerupCounts] = useState({
-    magnet: 1,
-    shuffle: 1,
+    magnet: 3,
+    shuffle: 3,
     gumball: 1,
   });
+  const [isMagnetActive, setIsMagnetActive] = useState<boolean>(false);
+  const isMagnetActiveRef = useRef<boolean>(false);
+  const [magnetFrame, setMagnetFrame] = useState<number>(0);
+  const [shuffleFrame, setShuffleFrame] = useState<number>(0);
+  const shuffleAnimTimerRef = useRef<number>(0);
+
+  const setMagnetActive = useCallback((active: boolean | ((prev: boolean) => boolean)) => {
+    setIsMagnetActive((prev) => {
+      const nextVal = typeof active === 'function' ? active(prev) : active;
+      isMagnetActiveRef.current = nextVal;
+      return nextVal;
+    });
+  }, []);
   const [, setImagesLoaded] = useState<boolean>(false);
 
   // Current canvas viewport scale & offset in CSS pixels
@@ -162,7 +266,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({ levelNumber = 35 }) => {
   }, []);
 
   // Game references for requestAnimationFrame loop
-  const levelDataRef = useRef<LevelData>(getLevel35());
+  const levelDataRef = useRef<LevelData>(generateSolvableLevel(levelNumber));
   const gridRef = useRef<GridCell[][]>([]);
   const columnsRef = useRef<BrickColumn[]>([]);
   const physicsRef = useRef<FunnelPhysics>(new FunnelPhysics());
@@ -177,19 +281,34 @@ export const GameBoard: React.FC<GameBoardProps> = ({ levelNumber = 35 }) => {
   const cyberFrameRef = useRef<HTMLImageElement | null>(null);
   const bucketImgsRef = useRef<Partial<Record<MarbleColor, HTMLImageElement>>>({});
   const railBucketImgsRef = useRef<Partial<Record<MarbleColor, HTMLImageElement>>>({});
+  const crateOpenImgsRef = useRef<Partial<Record<MarbleColor, HTMLImageElement>>>({});
+  const crateClosedImgsRef = useRef<Partial<Record<MarbleColor, HTMLImageElement>>>({});
+  const crateMysteryImgRef = useRef<HTMLImageElement | null>(null);
   const slotbarLightsOnRef = useRef<HTMLImageElement | null>(null);
   const slotbarLightsOffRef = useRef<HTMLImageElement | null>(null);
   const bucketsSheetRef = useRef<HTMLImageElement | null>(null);
+  const bucketSpritesheetRef = useRef<HTMLImageElement | null>(null);
+  const frameLightsImgsRef = useRef<HTMLImageElement[]>([]);
+  const frameLightsAnimTimerRef = useRef<number>(0);
+  const frameLightsAnimElapsedRef = useRef<number>(0);
+  const caveImgsRef = useRef<HTMLImageElement[]>([]);
+  const ballImgsRef = useRef<Partial<Record<MarbleColor, HTMLImageElement>>>({});
 
   useEffect(() => {
     let loadedCount = 0;
-    const totalToLoad = 21;
+    const totalToLoad = 70;
     const checkLoaded = () => {
       loadedCount++;
       if (loadedCount >= totalToLoad) {
         setImagesLoaded(true);
       }
     };
+
+    const bSpr = new Image();
+    bSpr.onload = checkLoaded;
+    bSpr.src = '/assets/bucket_spritesheet.png';
+    if (bSpr.complete) checkLoaded();
+    bucketSpritesheetRef.current = bSpr;
 
     const img = new Image();
     img.onload = checkLoaded;
@@ -262,19 +381,106 @@ export const GameBoard: React.FC<GameBoardProps> = ({ levelNumber = 35 }) => {
       loadedRail[c as MarbleColor] = bImg;
     }
     railBucketImgsRef.current = loadedRail;
+
+    // Preload closed crates with glowing cyber lids
+    const colorClosedCrateMap: Record<MarbleColor, string> = {
+      purple: crateClosedPurple,
+      pink: crateClosedPink,
+      ice: crateClosedIce,
+      yellow: crateClosedYellow,
+      lime: crateClosedLime,
+      cyan: crateClosedCyan,
+      orange: crateClosedOrange,
+      red: crateClosedRed,
+    };
+    const loadedClosedCrates: Partial<Record<MarbleColor, HTMLImageElement>> = {};
+    for (const [c, src] of Object.entries(colorClosedCrateMap)) {
+      const ccImg = new Image();
+      ccImg.onload = checkLoaded;
+      ccImg.src = src;
+      if (ccImg.complete) checkLoaded();
+      loadedClosedCrates[c as MarbleColor] = ccImg;
+    }
+    crateClosedImgsRef.current = loadedClosedCrates;
+
+    // Preload mystery question-mark closed crate
+    const mysteryImg = new Image();
+    mysteryImg.onload = checkLoaded;
+    mysteryImg.src = crateMysterySrc;
+    if (mysteryImg.complete) checkLoaded();
+    crateMysteryImgRef.current = mysteryImg;
+
+    // Preload empty open containers (with 9 circular sockets inside)
+    const colorOpenCrateMap: Record<MarbleColor, string> = {
+      purple: crateOpenPurple,
+      pink: crateOpenPink,
+      ice: crateOpenIce,
+      yellow: crateOpenYellow,
+      lime: crateOpenLime,
+      cyan: crateOpenCyan,
+      orange: crateOpenOrange,
+      red: crateOpenRed,
+    };
+    const loadedOpenCrates: Partial<Record<MarbleColor, HTMLImageElement>> = {};
+    for (const [c, src] of Object.entries(colorOpenCrateMap)) {
+      const ocImg = new Image();
+      ocImg.onload = checkLoaded;
+      ocImg.src = src;
+      if (ocImg.complete) checkLoaded();
+      loadedOpenCrates[c as MarbleColor] = ocImg;
+    }
+    crateOpenImgsRef.current = loadedOpenCrates;
+
+    // Preload animated sci-fi frame light states (8 frames)
+    const loadedFrameLights: HTMLImageElement[] = [];
+    FRAME_LIGHT_SRCS.forEach((src) => {
+      const flImg = new Image();
+      flImg.onload = checkLoaded;
+      flImg.onerror = checkLoaded;
+      flImg.src = src;
+      if (flImg.complete) checkLoaded();
+      loadedFrameLights.push(flImg);
+    });
+    frameLightsImgsRef.current = loadedFrameLights;
+
+    // Preload animated cave dispenser frames (16 frames)
+    const loadedCaveFrames: HTMLImageElement[] = [];
+    CAVE_FRAME_SRCS.forEach((src) => {
+      const cImg = new Image();
+      cImg.onload = checkLoaded;
+      cImg.onerror = checkLoaded;
+      cImg.src = src;
+      if (cImg.complete) checkLoaded();
+      loadedCaveFrames.push(cImg);
+    });
+    caveImgsRef.current = loadedCaveFrames;
+
+    // Preload glossy 3D sphere ball images (8 colors)
+    const ballImgMap: Record<MarbleColor, string> = {
+      purple: ballPurple,
+      pink: ballPink,
+      ice: ballIce,
+      yellow: ballYellow,
+      lime: ballLime,
+      cyan: ballCyan,
+      orange: ballOrange,
+      red: ballRed,
+    };
+    const loadedBalls: Partial<Record<MarbleColor, HTMLImageElement>> = {};
+    for (const [c, src] of Object.entries(ballImgMap)) {
+      const bImg = new Image();
+      bImg.onload = checkLoaded;
+      bImg.onerror = checkLoaded;
+      bImg.src = src;
+      if (bImg.complete) checkLoaded();
+      loadedBalls[c as MarbleColor] = bImg;
+    }
+    ballImgsRef.current = loadedBalls;
   }, []);
 
   // Initialize level
   const initLevel = useCallback((lvl: number) => {
-    let data: LevelData;
-    if (lvl === 35) {
-      data = getLevel35();
-    } else if (lvl === 1) {
-      data = getLevel1();
-    } else {
-      data = generateSolvableLevel(lvl);
-    }
-
+    const data = generateSolvableLevel(lvl);
     levelDataRef.current = data;
     gridRef.current = data.grid.map((row) =>
       row.map((cell) => ({
@@ -300,11 +506,11 @@ export const GameBoard: React.FC<GameBoardProps> = ({ levelNumber = 35 }) => {
     // Build brick columns
     columnsRef.current = data.columns.map((colColors, i) => ({
       x: BRICK_COLUMNS_X[i],
-      bricks: colColors.map((color) => ({
+      bricks: colColors.map((color, bIdx) => ({
         color,
         filled: 0,
         inFlight: 0,
-        animState: 'idle',
+        animState: bIdx === 0 ? 'activate' : 'idle',
         animTimer: 0,
       })),
       lastDropTime: 0,
@@ -317,6 +523,8 @@ export const GameBoard: React.FC<GameBoardProps> = ({ levelNumber = 35 }) => {
     beltBallsRef.current = [];
     droppingBallsRef.current = [];
     particlesRef.current = [];
+    frameLightsAnimTimerRef.current = 0;
+    frameLightsAnimElapsedRef.current = 0;
     setGameState('playing');
   }, []);
 
@@ -339,82 +547,78 @@ export const GameBoard: React.FC<GameBoardProps> = ({ levelNumber = 35 }) => {
   // Next level
   const handleNextLevel = () => {
     sounds.playTap();
-    const nextLvl = currentLevel === 1 ? 35 : currentLevel + 1;
+    const nextLvl = currentLevel + 1;
     setCurrentLevel(nextLvl);
   };
 
-  // Power-up 1: Magnet
-  const useMagnet = () => {
-    if (powerupCounts.magnet <= 0 || gameState !== 'playing') return;
-    setPowerupCounts((p) => ({ ...p, magnet: p.magnet - 1 }));
-    sounds.playPowerup();
-
-    const topColors = new Map<MarbleColor, number>();
-    columnsRef.current.forEach((col, idx) => {
-      if (col.bricks.length > 0) {
-        topColors.set(col.bricks[0].color, idx);
-      }
-    });
-
-    const remainingBeltBalls: BeltBall[] = [];
-
-    for (const ball of beltBallsRef.current) {
-      const colIdx = topColors.get(ball.color);
-      if (colIdx !== undefined) {
-        const col = columnsRef.current[colIdx];
-        const topBrick = col.bricks[0];
-        if (topBrick && topBrick.filled + topBrick.inFlight < BRICK_HOLES) {
-          const targetHole = topBrick.filled + topBrick.inFlight;
-          topBrick.inFlight++;
-          const coords = getBeltCoordinates(ball.s);
-
-          droppingBallsRef.current.push({
-            id: nextDropIdRef.current++,
-            color: ball.color,
-            startX: coords.x,
-            startY: coords.y,
-            targetX: col.x + BRICK_HOLE_OFFSETS[targetHole],
-            targetY: BALTI_SOCKET_Y,
-            progress: 0,
-            duration: 0.22,
-            colIndex: colIdx,
-            holeIndex: targetHole,
-          });
-          continue;
-        }
-      }
-      remainingBeltBalls.push(ball);
+  // Power-up 1: Magnet (Picks and opens balls from any locked crate user taps)
+  const toggleMagnet = () => {
+    if (gameState !== 'playing' || isPaused) return;
+    if (powerupCounts.magnet <= 0) {
+      sounds.playBlocked();
+      return;
     }
-
-    beltBallsRef.current = remainingBeltBalls;
+    sounds.playTap();
+    setMagnetActive((prev) => !prev);
   };
 
-  // Power-up 2: Shuffle
+  // Power-up 2: Shuffle (Brings forward queued buckets that match balls currently on the chain)
   const useShuffle = () => {
-    if (powerupCounts.shuffle <= 0 || gameState !== 'playing') return;
-    setPowerupCounts((p) => ({ ...p, shuffle: p.shuffle - 1 }));
-    sounds.playPowerup();
+    if (gameState !== 'playing' || isPaused) return;
+    if (powerupCounts.shuffle <= 0) {
+      sounds.playBlocked();
+      return;
+    }
 
-    const normalBlocks: { r: number; c: number; color: MarbleColor }[] = [];
-    for (let r = 0; r < GRID_ROWS; r++) {
-      for (let c = 0; c < GRID_COLS; c++) {
-        if (gridRef.current[r][c].kind === 'block' && gridRef.current[r][c].color) {
-          normalBlocks.push({ r, c, color: gridRef.current[r][c].color! });
+    const result = performShufflePowerup(
+      columnsRef.current,
+      beltBallsRef.current,
+      physicsRef.current.balls
+    );
+
+    // Trigger 360-degree holographic spin animation on shuffle button
+    shuffleAnimTimerRef.current = 0.56;
+
+    if (result.shuffled) {
+      setPowerupCounts((p) => ({ ...p, shuffle: Math.max(0, p.shuffle - 1) }));
+      sounds.playPowerup();
+      sounds.playBallClink();
+
+      // Trigger visual animation and particle sparks on swapped bucket columns
+      result.swappedColumns.forEach((colIdx) => {
+        const col = columnsRef.current[colIdx];
+        if (col && col.bricks.length > 0) {
+          col.shiftOffsetY = 0;
+          col.enterTimer = 0.28;
+          col.lightPulseTimer = 1.0;
+          col.bricks[0].animState = 'activate';
+          col.bricks[0].animTimer = 0;
+
+          const colX = col.x;
+          const colY = 580;
+          for (let s = 0; s < 14; s++) {
+            particlesRef.current.push({
+              x: colX + (Math.random() - 0.5) * 36,
+              y: colY + (Math.random() - 0.5) * 20,
+              vx: (Math.random() - 0.5) * 120,
+              vy: -40 - Math.random() * 60,
+              color: COLOR_CONFIG[col.bricks[0].color]?.hex || '#00F0FF',
+              size: 3 + Math.random() * 4,
+              alpha: 1,
+              life: 0,
+              maxLife: 0.45,
+              shape: s % 2 === 0 ? 'star' : 'sparkle',
+            });
+          }
         }
-      }
-    }
+      });
 
-    const colors = normalBlocks.map((b) => b.color);
-    for (let i = colors.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [colors[i], colors[j]] = [colors[j], colors[i]];
+      // Frame lights pulse
+      frameLightsAnimTimerRef.current = 1.5;
+      frameLightsAnimElapsedRef.current = 0;
+    } else {
+      sounds.playBlocked();
     }
-
-    normalBlocks.forEach((b, idx) => {
-      gridRef.current[b.r][b.c].color = colors[idx];
-      gridRef.current[b.r][b.c].animState = 'popBounced';
-      gridRef.current[b.r][b.c].animTimer = 0;
-    });
   };
 
   // Power-up 3: Gumball
@@ -476,7 +680,77 @@ export const GameBoard: React.FC<GameBoardProps> = ({ levelNumber = 35 }) => {
           arenaGameY <= cy + halfH
         ) {
           const cell = gridRef.current[r][c];
-          if (cell.kind === 'block' && isExposed(gridRef.current, r, c)) {
+
+          // 1. MAGNET POWER-UP ACTIVE: Tapping any locked (or unexposed) tile opens it and bursts its balls!
+          if (isMagnetActiveRef.current) {
+            if (cell.kind === 'locked' || cell.kind === 'block') {
+              // Consume 1 Magnet
+              setPowerupCounts((p) => ({ ...p, magnet: Math.max(0, p.magnet - 1) }));
+              setMagnetActive(false);
+              sounds.playPowerup();
+
+              // Lights burst effect on the cyber frame
+              frameLightsAnimTimerRef.current = 2.0;
+              frameLightsAnimElapsedRef.current = 0;
+
+              // Electric magnetic particles arcing on the tapped crate
+              for (let s = 0; s < 22; s++) {
+                particlesRef.current.push({
+                  x: cx + (Math.random() - 0.5) * 26,
+                  y: cy + ARENA_SHIFT_Y + (Math.random() - 0.5) * 20,
+                  vx: (Math.random() - 0.5) * 140,
+                  vy: -60 - Math.random() * 80,
+                  color: s % 2 === 0 ? '#00F0FF' : '#FFE853',
+                  size: 3 + Math.random() * 4,
+                  alpha: 1,
+                  life: 0,
+                  maxLife: 0.5,
+                  shape: 'sparkle',
+                });
+              }
+
+              const burstColor = cell.color || 'purple';
+              // Empty the cell and burst open its 9 balls into the funnel!
+              gridRef.current[r][c] = { kind: 'empty' };
+              sounds.playPopBurst();
+              physicsRef.current.spawnBurst(cx, cy, burstColor, BALLS_PER_BLOCK);
+              setScore((s) => s + 100);
+
+              // Update grid to reveal newly adjacent locked tiles
+              const changes = updateGridAfterChange(gridRef.current);
+              if (changes.revealedCells.length > 0) {
+                sounds.playTap();
+                changes.revealedCells.forEach(({ r: revR, c: revC, color: revColor }) => {
+                  const rx = GRID_X_CENTERS[revC];
+                  const ry = GRID_Y_CENTERS[revR] + ARENA_SHIFT_Y;
+                  for (let s = 0; s < 5; s++) {
+                    particlesRef.current.push({
+                      x: rx + (Math.random() - 0.5) * 20,
+                      y: ry + (Math.random() - 0.5) * 16,
+                      vx: (Math.random() - 0.5) * 80,
+                      vy: -25 - Math.random() * 45,
+                      color: COLOR_CONFIG[revColor]?.hex || '#FFE494',
+                      size: 3 + Math.random() * 3,
+                      alpha: 1,
+                      life: 0,
+                      maxLife: 0.35,
+                      shape: 'sparkle',
+                    });
+                  }
+                });
+              }
+              if (changes.dispensedCells.length > 0) {
+                sounds.playPopBurst();
+              }
+              return;
+            }
+          }
+
+          if (cell.kind === 'block' && isExposed(gridRef.current, r, c) && cell.animState !== 'revealing') {
+            // Trigger lights blink & chase animation on upper bucket click!
+            frameLightsAnimTimerRef.current = 1.6;
+            frameLightsAnimElapsedRef.current = 0;
+
             // Check if funnel waiting backlog is locked (>= 45 balls waiting until < 40)
             if (backlogLockedRef.current) {
               sounds.playBlocked();
@@ -500,6 +774,24 @@ export const GameBoard: React.FC<GameBoardProps> = ({ levelNumber = 35 }) => {
                   const changes = updateGridAfterChange(gridRef.current);
                   if (changes.revealedCells.length > 0) {
                     sounds.playTap();
+                    changes.revealedCells.forEach(({ r: revR, c: revC, color: revColor }) => {
+                      const rx = GRID_X_CENTERS[revC];
+                      const ry = GRID_Y_CENTERS[revR] + ARENA_SHIFT_Y;
+                      for (let s = 0; s < 5; s++) {
+                        particlesRef.current.push({
+                          x: rx + (Math.random() - 0.5) * 20,
+                          y: ry + (Math.random() - 0.5) * 16,
+                          vx: (Math.random() - 0.5) * 80,
+                          vy: -25 - Math.random() * 45,
+                          color: COLOR_CONFIG[revColor]?.hex || '#FFE494',
+                          size: 3 + Math.random() * 3,
+                          alpha: 1,
+                          life: 0,
+                          maxLife: 0.35,
+                          shape: 'sparkle',
+                        });
+                      }
+                    });
                   }
                   if (changes.dispensedCells.length > 0) {
                     sounds.playPopBurst();
@@ -508,6 +800,42 @@ export const GameBoard: React.FC<GameBoardProps> = ({ levelNumber = 35 }) => {
               }
             }, 80);
             return;
+          } else if (cell.kind === 'locked' || (cell.kind === 'block' && !isExposed(gridRef.current, r, c))) {
+            // User clicked on a locked upper bucket: trigger brief lights animation feedback
+            sounds.playBlocked();
+            frameLightsAnimTimerRef.current = 0.8;
+            frameLightsAnimElapsedRef.current = 0;
+            return;
+          } else if (cell.kind === 'dispenser') {
+            const belowR = r + 1;
+            if (
+              belowR < GRID_ROWS &&
+              gridRef.current[belowR][c].kind === 'empty' &&
+              cell.counter &&
+              cell.counter > 0 &&
+              cell.animState !== 'cave_dispensing'
+            ) {
+              sounds.playPopBurst();
+              frameLightsAnimTimerRef.current = 1.0;
+              frameLightsAnimElapsedRef.current = 0;
+              const nextColor = cell.queue?.shift() || 'purple';
+              cell.counter--;
+              cell.animState = 'cave_dispensing';
+              cell.animTimer = 0;
+              gridRef.current[belowR][c] = {
+                kind: 'block',
+                color: nextColor,
+                animState: 'dispensing',
+                animTimer: 0,
+                offsetY: -15,
+              };
+              return;
+            } else {
+              sounds.playTap();
+              frameLightsAnimTimerRef.current = 0.8;
+              frameLightsAnimElapsedRef.current = 0;
+              return;
+            }
           }
         }
       }
@@ -566,7 +894,8 @@ export const GameBoard: React.FC<GameBoardProps> = ({ levelNumber = 35 }) => {
         return;
       }
 
-      const dpr = window.devicePixelRatio || 1;
+      // Support high-DPI Retina screens on mobile (DPR 2x to 3x)
+      const dpr = Math.min(Math.max(window.devicePixelRatio || 1, 2), 3);
       const displayW = Math.round(rect.width * dpr);
       const displayH = Math.round(rect.height * dpr);
 
@@ -574,6 +903,10 @@ export const GameBoard: React.FC<GameBoardProps> = ({ levelNumber = 35 }) => {
         canvas.width = displayW;
         canvas.height = displayH;
       }
+
+      // Explicitly set high-definition smoothing to prevent pixelation on mobile screens
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = 'high';
 
       ctx.save();
       // Apply DPR scaling
@@ -583,8 +916,9 @@ export const GameBoard: React.FC<GameBoardProps> = ({ levelNumber = 35 }) => {
       const scaleX = rect.width / BASE_WIDTH;
       const scaleY = rect.height / BASE_HEIGHT;
       const scale = Math.min(scaleX, scaleY);
-      const offsetX = (rect.width - BASE_WIDTH * scale) / 2;
-      const offsetY = (rect.height - BASE_HEIGHT * scale) / 2;
+      const offsetX = Math.round((rect.width - BASE_WIDTH * scale) / 2);
+      const offsetY = Math.round((rect.height - BASE_HEIGHT * scale) / 2);
+      const arenaOffsetY = Math.round(offsetY + ARENA_SHIFT_Y * scale);
 
       viewTransformRef.current = { scale, offsetX, offsetY };
 
@@ -596,7 +930,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({ levelNumber = 35 }) => {
         ctx.fillRect(0, 0, rect.width, rect.height);
       }
 
-      ctx.translate(offsetX, offsetY + ARENA_SHIFT_Y * scale);
+      ctx.translate(offsetX, arenaOffsetY);
       ctx.scale(scale, scale);
 
       // ==========================================
@@ -663,7 +997,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({ levelNumber = 35 }) => {
               matchedBeltBallIds.add(ball.id);
               const col = columnsRef.current[match.matchedColIndex];
               col.lightPulseTimer = Math.max(col.lightPulseTimer || 0, 0.45);
-              const targetX = col.x + BRICK_HOLE_OFFSETS[match.targetHoleIndex];
+              const targetX = col.x;
               const targetY = BALTI_SOCKET_Y;
 
               droppingBallsRef.current.push({
@@ -698,29 +1032,21 @@ export const GameBoard: React.FC<GameBoardProps> = ({ levelNumber = 35 }) => {
               topBrick.inFlight = Math.max(0, topBrick.inFlight - 1);
               topBrick.filled++;
               col.lightPulseTimer = 0.65;
-              sounds.playDropHole(topBrick.filled - 1);
 
-              if (topBrick.filled >= BRICK_HOLES && topBrick.animState !== 'completing') {
-                topBrick.animState = 'completing';
+              // Trigger proper bucket animation based on ball sequence
+              if (topBrick.filled === 1) {
+                topBrick.animState = 'hit_1';
+                topBrick.animTimer = 0;
+                sounds.playDropHole(0);
+              } else if (topBrick.filled === 2) {
+                topBrick.animState = 'hit_2';
+                topBrick.animTimer = 0;
+                sounds.playDropHole(1);
+              } else if (topBrick.filled >= 3) {
+                topBrick.animState = 'hit_3';
                 topBrick.animTimer = 0;
                 col.lightPulseTimer = 1.0;
-                sounds.playBrickClear();
-                setScore((s) => s + 300);
-
-                for (let s = 0; s < 7; s++) {
-                  particlesRef.current.push({
-                    x: col.x + (Math.random() - 0.5) * 36,
-                    y: BALTI_SOCKET_Y + (Math.random() - 0.5) * 12,
-                    vx: (Math.random() - 0.5) * 90,
-                    vy: -40 - Math.random() * 60,
-                    color: '#FFE494',
-                    size: 3 + Math.random() * 4,
-                    alpha: 1,
-                    life: 0,
-                    maxLife: 0.45,
-                    shape: Math.random() > 0.4 ? 'star' : 'sparkle',
-                  });
-                }
+                sounds.playDropHole(2);
               }
             }
 
@@ -731,15 +1057,68 @@ export const GameBoard: React.FC<GameBoardProps> = ({ levelNumber = 35 }) => {
         columnsRef.current.forEach((col) => {
           if (col.bricks.length > 0) {
             const top = col.bricks[0];
-            if (top.animState === 'completing') {
+            if (top.animState === 'hit_1') {
               top.animTimer = (top.animTimer || 0) + dt;
-              if (top.animTimer >= 0.28) {
+              if (top.animTimer >= ANIM_DURATIONS.hit_1) {
+                top.animState = 'idle';
+                top.animTimer = 0;
+              }
+            } else if (top.animState === 'hit_2') {
+              top.animTimer = (top.animTimer || 0) + dt;
+              if (top.animTimer >= ANIM_DURATIONS.hit_2) {
+                top.animState = 'idle';
+                top.animTimer = 0;
+              }
+            } else if (top.animState === 'hit_3') {
+              top.animTimer = (top.animTimer || 0) + dt;
+              if (top.animTimer >= ANIM_DURATIONS.hit_3) {
+                top.animState = 'hold_full';
+                top.animTimer = 0;
+              }
+            } else if (top.animState === 'hold_full') {
+              top.animTimer = (top.animTimer || 0) + dt;
+              if (top.animTimer >= ANIM_DURATIONS.hold_full) {
+                top.animState = 'vanish';
+                top.animTimer = 0;
+                sounds.playBrickClear();
+                setScore((s) => s + 300);
+
+                // Sparkling pop celebration particles
+                for (let s = 0; s < 10; s++) {
+                  particlesRef.current.push({
+                    x: col.x + (Math.random() - 0.5) * 36,
+                    y: BALTI_SOCKET_Y + (Math.random() - 0.5) * 16,
+                    vx: (Math.random() - 0.5) * 100,
+                    vy: -40 - Math.random() * 60,
+                    color: '#FFE494',
+                    size: 3 + Math.random() * 4,
+                    alpha: 1,
+                    life: 0,
+                    maxLife: 0.5,
+                    shape: Math.random() > 0.4 ? 'star' : 'sparkle',
+                  });
+                }
+              }
+            } else if (top.animState === 'vanish' || top.animState === 'completing') {
+              top.animTimer = (top.animTimer || 0) + dt;
+              if (top.animTimer >= ANIM_DURATIONS.vanish) {
                 col.bricks.shift();
                 col.shiftOffsetY = 0;
-                // Elevator piston pushes new balti up onto the railing!
                 col.enterTimer = 0.26;
                 col.lightPulseTimer = 0.75;
                 sounds.playBallClink();
+
+                if (col.bricks.length > 0) {
+                  const nextTop = col.bricks[0];
+                  nextTop.animState = 'activate';
+                  nextTop.animTimer = 0;
+                }
+              }
+            } else if (top.animState === 'activate') {
+              top.animTimer = (top.animTimer || 0) + dt;
+              if (top.animTimer >= ANIM_DURATIONS.activate) {
+                top.animState = 'idle';
+                top.animTimer = 0;
               }
             }
           }
@@ -789,13 +1168,36 @@ export const GameBoard: React.FC<GameBoardProps> = ({ levelNumber = 35 }) => {
       }
       backlogLockedRef.current = nowLocked;
 
+      // Update frame lights animation timer (only blinks when user clicks an upper bucket)
+      if (!isPaused && frameLightsAnimTimerRef.current > 0) {
+        frameLightsAnimTimerRef.current = Math.max(0, frameLightsAnimTimerRef.current - dt);
+        frameLightsAnimElapsedRef.current += dt;
+      }
+
+      // Update power-up button spritesheet animations
+      if (!isPaused && shuffleAnimTimerRef.current > 0) {
+        shuffleAnimTimerRef.current = Math.max(0, shuffleAnimTimerRef.current - dt);
+        const p = 1.0 - shuffleAnimTimerRef.current / 0.56;
+        const frame = Math.min(7, Math.floor(p * 8));
+        setShuffleFrame(frame);
+      } else {
+        setShuffleFrame((prev) => (prev !== 0 ? 0 : prev));
+      }
+
+      if (!isPaused && isMagnetActiveRef.current) {
+        const cycleFrame = 2 + Math.floor((currentTime / 90) % 6);
+        setMagnetFrame(cycleFrame);
+      } else {
+        setMagnetFrame((prev) => (prev !== 0 ? 0 : prev));
+      }
+
       // ==========================================
       // 2. CANVAS RENDERING
       // ==========================================
-      // Renders the cyber frame: upper buckets chamber, funnel neck & bottom chain dock
+      // Renders the cyber frame with animated lights: upper buckets chamber, funnel neck & bottom chain dock
       renderCyberFrame(ctx);
       // Conveyor belt renders the rotating sprockets, moving link treads, and 30 sockets with marbles
-      conveyorRenderer.render(ctx, beltScrollDistanceRef.current, currentTime, beltBallsRef.current, false);
+      conveyorRenderer.render(ctx, beltScrollDistanceRef.current, currentTime, beltBallsRef.current, false, ballImgsRef.current);
       renderMachineRailingAndBaltis(ctx, columnsRef.current, dt);
       renderGridBlocks(ctx, gridRef.current, dt);
       renderFunnelBalls(ctx, physicsRef.current.balls);
@@ -874,7 +1276,30 @@ export const GameBoard: React.FC<GameBoardProps> = ({ levelNumber = 35 }) => {
 
   const renderCyberFrame = (ctx: CanvasRenderingContext2D) => {
     ctx.save();
-    if (cyberFrameRef.current && cyberFrameRef.current.complete && cyberFrameRef.current.naturalWidth > 0) {
+
+    // The lights ONLY blink, cycle, and animate when the user clicks an upper bucket.
+    // In idle/normal state, they stay at Frame 0 (unlit/steady, no continuous blinking).
+    let frameIndex = 0;
+    if (!isPaused && frameLightsAnimTimerRef.current > 0) {
+      const frameDuration = 0.09; // fast dynamic neon blink & chase animation
+      const elapsed = frameLightsAnimElapsedRef.current;
+      frameIndex = Math.min(7, Math.floor(elapsed / frameDuration) % 8);
+    } else {
+      frameIndex = 0; // Off / steady frame: no blinking
+    }
+
+    const lightFrames = frameLightsImgsRef.current;
+    const frameImg = lightFrames[frameIndex];
+
+    if (frameImg && frameImg.complete && frameImg.naturalWidth > 0) {
+      ctx.drawImage(
+        frameImg,
+        CYBER_FRAME.x,
+        CYBER_FRAME.y,
+        CYBER_FRAME.width,
+        CYBER_FRAME.height
+      );
+    } else if (cyberFrameRef.current && cyberFrameRef.current.complete && cyberFrameRef.current.naturalWidth > 0) {
       ctx.drawImage(
         cyberFrameRef.current,
         CYBER_FRAME.x,
@@ -998,19 +1423,23 @@ export const GameBoard: React.FC<GameBoardProps> = ({ levelNumber = 35 }) => {
   ) => {
     ctx.save();
 
-    const { x: fx, y: fy, width: fw, height: fh } = SLOTBAR_FRAME;
+    // 1. Draw the 4 Baltis (Buckets) via animated Spritesheet
+    const sheetImg = bucketSpritesheetRef.current;
+    const hasSheet = sheetImg && sheetImg.complete && sheetImg.naturalWidth > 0;
+    const cellCenterY = 580;
+    const baltiW = 50;
+    const baltiH = 50;
 
-    // 1. Draw the 4 Baltis (Buckets) & their Marbles (recessed inside the 4 holes)
     columns.forEach((col) => {
       const colX = col.x;
       const stack = col.bricks;
       const count = stack.length;
 
-      // Completed column beacon inside its slot
+      // Completed column beacon
       if (count === 0) {
         ctx.fillStyle = 'rgba(46, 181, 90, 0.2)';
         ctx.beginPath();
-        ctx.arc(colX, fy + fh * 0.45, 11, 0, Math.PI * 2);
+        ctx.arc(colX, cellCenterY, 12, 0, Math.PI * 2);
         ctx.fill();
 
         ctx.strokeStyle = '#2EB55A';
@@ -1021,159 +1450,58 @@ export const GameBoard: React.FC<GameBoardProps> = ({ levelNumber = 35 }) => {
         ctx.font = 'bold 13px Fredoka, sans-serif';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.fillText('✓', colX, fy + fh * 0.45);
+        ctx.fillText('✓', colX, cellCenterY);
         return;
       }
 
-      const brick = stack[0];
-      const config = COLOR_CONFIG[brick.color];
-
-      // Compute animation transforms
-      let baltiScale = 1.0;
-      let liftY = 0;
-      let alpha = 1.0;
-
-      if (brick.animState === 'completing') {
-        const t = Math.min((brick.animTimer || 0) / 0.28, 1.0);
-        baltiScale = 1.0 + 0.18 * Math.sin(t * Math.PI);
-        liftY = -14 * t;
-        alpha = Math.max(0, 1.0 - t * 1.3);
-      } else if (col.enterTimer && col.enterTimer > 0) {
-        const t = 1 - col.enterTimer / 0.26;
-        liftY = (1 - t) * 18; // smooth elevator emergence from inside the slot hole
-        baltiScale = 0.75 + 0.25 * Math.sin(t * Math.PI * 0.5);
-        alpha = Math.min(1.0, t * 1.5);
+      // 1a. Draw queued bucket behind in rack if stack has more than 1 bucket
+      if (count > 1 && hasSheet) {
+        const queuedBrick = stack[1];
+        drawBucketCell(
+          ctx,
+          sheetImg,
+          queuedBrick.color,
+          0, // Frame 0: queued dim bucket
+          colX,
+          cellCenterY - 9, // Slightly recessed in queue slot
+          42,
+          42,
+          0.72
+        );
       }
 
-      ctx.save();
-      ctx.globalAlpha = alpha;
-      ctx.translate(colX, liftY);
-      ctx.scale(baltiScale, baltiScale);
-
-      // Draw the cropped bucket sprite
-      const railBucketImg = railBucketImgsRef.current[brick.color];
-      const drawW = BALTI_WIDTH; // 42
-      const drawH = BALTI_HEIGHT; // 44
-      const baltiTopY = BALTI_TOP_Y;
-
-      if (railBucketImg && railBucketImg.complete && railBucketImg.naturalWidth > 0) {
-        ctx.drawImage(
-          railBucketImg,
-          -drawW / 2,
-          baltiTopY,
-          drawW,
-          drawH
+      // 1b. Draw active front bucket using spritesheet animation
+      const brick = stack[0];
+      if (hasSheet) {
+        const frameIdx = getBucketFrameIndex(brick);
+        drawBucketCell(
+          ctx,
+          sheetImg,
+          brick.color,
+          frameIdx,
+          colX,
+          cellCenterY,
+          baltiW,
+          baltiH,
+          1.0
         );
       } else {
-        // Fallback vector bucket
-        const mouthY = baltiTopY + 2;
-        const mouthHW = drawW / 2 - 2;
-        const baseHW = 15;
-        const baseY = baltiTopY + drawH - 2;
-
-        const bodyGrad = ctx.createLinearGradient(-mouthHW, mouthY, mouthHW, baseY);
-        bodyGrad.addColorStop(0, config.highlight);
-        bodyGrad.addColorStop(0.35, config.hex);
-        bodyGrad.addColorStop(0.85, config.dark);
-        bodyGrad.addColorStop(1, config.border);
-        ctx.fillStyle = bodyGrad;
-
-        ctx.beginPath();
-        ctx.moveTo(-mouthHW, mouthY);
-        ctx.lineTo(mouthHW, mouthY);
-        ctx.quadraticCurveTo(mouthHW + 2, (mouthY + baseY) / 2, baseHW, baseY);
-        ctx.quadraticCurveTo(0, baseY + 3, -baseHW, baseY);
-        ctx.quadraticCurveTo(-mouthHW - 2, (mouthY + baseY) / 2, -mouthHW, mouthY);
-        ctx.closePath();
-        ctx.fill();
-
-        ctx.strokeStyle = config.border;
-        ctx.lineWidth = 1.8;
-        ctx.stroke();
-      }
-
-      // Marbles inside the bucket mouth socket cavity
-      BRICK_HOLE_OFFSETS.forEach((hx, hIdx) => {
-        const isFilled = hIdx < brick.filled;
-        const isInFlight = !isFilled && hIdx < brick.filled + brick.inFlight;
-        const holeY = BALTI_SOCKET_Y;
-        const holeR = 5.2;
-
-        if (isFilled) {
-          drawGlossyBall(ctx, hx, holeY, holeR, brick.color);
-        } else if (isInFlight) {
-          ctx.strokeStyle = '#FFEAA0';
-          ctx.lineWidth = 1.6;
-          ctx.beginPath();
-          ctx.arc(hx, holeY, holeR + 1, 0, Math.PI * 2);
-          ctx.stroke();
-        } else {
-          ctx.fillStyle = 'rgba(0, 0, 0, 0.35)';
-          ctx.beginPath();
-          ctx.arc(hx, holeY, 2.5, 0, Math.PI * 2);
-          ctx.fill();
+        // Fallback if spritesheet is loading
+        const railBucketImg = railBucketImgsRef.current[brick.color];
+        if (railBucketImg && railBucketImg.complete && railBucketImg.naturalWidth > 0) {
+          ctx.drawImage(
+            railBucketImg,
+            colX - BALTI_WIDTH / 2,
+            BALTI_TOP_Y,
+            BALTI_WIDTH,
+            BALTI_HEIGHT
+          );
         }
-      });
-
-      // Celebration aura when completing
-      if (brick.animState === 'completing') {
-        const t = Math.min((brick.animTimer || 0) / 0.28, 1.0);
-        ctx.strokeStyle = '#FFE382';
-        ctx.lineWidth = 3 * (1 - t);
-        ctx.beginPath();
-        ctx.roundRect(-drawW / 2 - 4, baltiTopY - 2, drawW + 8, drawH + 4, 10);
-        ctx.stroke();
       }
-
-      ctx.restore();
     });
 
-    // 2. Draw the Sci-Fi Slotbar UI Frame OVER the buckets
-    // The 4 holes are transparent cutouts, so the buckets show through while the metallic frame embeds them!
-    const slotOffImg = slotbarLightsOffRef.current;
-    if (slotOffImg && slotOffImg.complete && slotOffImg.naturalWidth > 0) {
-      ctx.drawImage(slotOffImg, fx, fy, fw, fh);
-    }
-
-    // 3. Draw Neon Lights ON Overlay with dynamic flashing / pulse animations!
-    const slotOnImg = slotbarLightsOnRef.current;
-    if (slotOnImg && slotOnImg.complete && slotOnImg.naturalWidth > 0) {
-      // Ambient breathing neon glow
-      const time = Date.now() * 0.003;
-      const ambientGlow = 0.22 + 0.1 * Math.sin(time);
-      const maxPulse = Math.max(0, ...columns.map((c) => c.lightPulseTimer || 0));
-
-      // Global subtle neon illumination
-      ctx.save();
-      ctx.globalAlpha = Math.min(1.0, ambientGlow + maxPulse * 0.35);
-      ctx.drawImage(slotOnImg, fx, fy, fw, fh);
-      ctx.restore();
-
-      // Per-Column Reactive Neon Flashing:
-      // When balls fill / land or complete in column i, flash that slot brightly!
-      columns.forEach((col, i) => {
-        const pulse = col.lightPulseTimer || 0;
-        if (pulse > 0) {
-          const slotX1 = fx + i * (fw / 4);
-
-          // Fast neon electric strobe
-          const strobe = 0.8 + 0.2 * Math.sin(pulse * 40);
-          const flashAlpha = Math.min(1.0, (pulse / 0.65) * strobe);
-
-          ctx.save();
-          ctx.beginPath();
-          ctx.rect(slotX1, fy - 4, fw / 4, fh + 8);
-          ctx.clip();
-
-          ctx.globalAlpha = flashAlpha;
-          ctx.drawImage(slotOnImg, fx, fy, fw, fh);
-          ctx.restore();
-        }
-      });
-    }
-
-    // 4. Remaining Queue Badge Indicator ("New balti counter")
-    const badgeY = fy + fh + 3; // y ~ 604
+    // 2. Remaining Queue Badge Indicator ("New balti counter")
+    const badgeY = cellCenterY + 28; // Below the bucket
     const badgeW = 32;
     const badgeH = 12;
 
@@ -1236,13 +1564,29 @@ export const GameBoard: React.FC<GameBoardProps> = ({ levelNumber = 35 }) => {
         if (cell.kind === 'wall' || cell.kind === 'empty') continue;
 
         const cx = GRID_X_CENTERS[c];
-        const cy = GRID_Y_CENTERS[r] + (cell.offsetY || 0);
+        const cy = GRID_Y_CENTERS[r] + (cell.kind === 'dispenser' ? 0 : (cell.offsetY || 0));
 
-        if (cell.offsetY && cell.offsetY < 0) {
+        if (cell.kind === 'block' && cell.animState === 'dispensing') {
+          cell.animTimer = (cell.animTimer || 0) + dt;
+          // Frames 0-5 of cave: 6 / 16 = 0.375s
+          // At frame 6 (0.375s), slot opens with glow and bucket starts sliding out
+          if (cell.animTimer < 0.375) {
+            // Keep tucked inside cave during squash & glow charge-up
+            continue;
+          }
+          const slideProgress = Math.min(1.0, (cell.animTimer - 0.375) / 0.35);
+          const ease = 1 - Math.pow(1 - slideProgress, 3);
+          cell.offsetY = -15 * (1 - ease);
+          if (slideProgress >= 1.0) {
+            cell.animState = 'idle';
+            cell.offsetY = 0;
+            cell.animTimer = undefined;
+          }
+        } else if (cell.offsetY && cell.offsetY < 0) {
           cell.offsetY = Math.min(0, cell.offsetY + dt * 132);
         }
 
-        const tappable = cell.kind === 'block' && isExposed(grid, r, c);
+        const tappable = cell.kind === 'block' && isExposed(grid, r, c) && cell.animState !== 'revealing';
 
         ctx.save();
         ctx.translate(cx, cy);
@@ -1263,85 +1607,235 @@ export const GameBoard: React.FC<GameBoardProps> = ({ levelNumber = 35 }) => {
 
         if (cell.kind === 'locked') {
           const drawW = 35;
-          const drawH = 33;
-          // Locked Mystery Bucket Container
-          ctx.fillStyle = '#301850';
-          ctx.beginPath();
-          ctx.roundRect(-drawW / 2, -drawH / 2, drawW, drawH, 7);
-          ctx.fill();
-          ctx.strokeStyle = '#5E3199';
-          ctx.lineWidth = 2;
-          ctx.stroke();
+          const drawH = 32;
+          const isMystery = Boolean(cell.isMystery);
+          // When isMystery is true, conceal the color using the mystery titanium crate!
+          const crateImg = isMystery
+            ? (crateMysteryImgRef.current || crateClosedImgsRef.current['purple'])
+            : crateClosedImgsRef.current[cell.color || 'purple'];
 
-          // Inner mystery chamber
-          ctx.fillStyle = '#1D0C35';
+          // Dark slot cavity behind crate
+          ctx.fillStyle = '#100520';
           ctx.beginPath();
-          ctx.roundRect(-drawW / 2 + 3, -drawH / 2 + 3, drawW - 6, drawH - 6, 5);
+          ctx.roundRect(-drawW / 2, -drawH / 2, drawW, drawH, 6);
           ctx.fill();
 
-          // Golden question mark
-          ctx.fillStyle = '#FFE382';
-          ctx.font = 'bold 16px Fredoka, sans-serif';
-          ctx.textAlign = 'center';
-          ctx.textBaseline = 'middle';
-          ctx.fillText('?', 0, 0);
+          if (crateImg && crateImg.complete && crateImg.naturalWidth > 0) {
+            ctx.drawImage(crateImg, -drawW / 2, -drawH / 2, drawW, drawH);
+          } else {
+            // Elegant fallback if image still loading
+            ctx.fillStyle = '#1F1138';
+            ctx.beginPath();
+            ctx.roundRect(-drawW / 2, -drawH / 2, drawW, drawH, 7);
+            ctx.fill();
+            ctx.strokeStyle = '#00F0FF';
+            ctx.lineWidth = 1.5;
+            ctx.stroke();
+          }
+
+          // If mystery crate: render the high-tech glowing Question Mark (?) badge!
+          if (isMystery) {
+            const now = performance.now();
+            // Subtle rhythmic energy pulse
+            const pulse = 1.0 + 0.05 * Math.sin(now * 0.005 + r * 1.8 + c * 1.2);
+            const badgeY = -1;
+
+            ctx.save();
+            ctx.translate(0, badgeY);
+            ctx.scale(pulse, pulse);
+
+            // Outer cyan energy glow
+            ctx.shadowColor = '#00E5FF';
+            ctx.shadowBlur = 9;
+
+            // Cyber badge backing plate (hexagonal / rounded tech badge)
+            ctx.fillStyle = 'rgba(12, 6, 28, 0.92)';
+            ctx.beginPath();
+            ctx.roundRect(-9, -9, 18, 18, 5);
+            ctx.fill();
+
+            // Neon cyan border
+            ctx.strokeStyle = 'rgba(0, 240, 255, 0.95)';
+            ctx.lineWidth = 1.5;
+            ctx.stroke();
+
+            // Inner cyber tech corners
+            ctx.strokeStyle = 'rgba(255, 230, 80, 0.85)';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(-6, -7);
+            ctx.lineTo(-7, -7);
+            ctx.lineTo(-7, -6);
+            ctx.moveTo(6, -7);
+            ctx.lineTo(7, -7);
+            ctx.lineTo(7, -6);
+            ctx.moveTo(-6, 7);
+            ctx.lineTo(-7, 7);
+            ctx.lineTo(-7, 6);
+            ctx.moveTo(6, 7);
+            ctx.lineTo(7, 7);
+            ctx.lineTo(7, 6);
+            ctx.stroke();
+
+            // Bright glowing Question Mark (?)
+            ctx.shadowColor = '#FFE853';
+            ctx.shadowBlur = 7;
+            ctx.fillStyle = '#FFFFFF';
+            ctx.font = '900 13px Fredoka, sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('?', 0, 0.5);
+
+            ctx.restore();
+          }
+
+          // Magnet Power-up Targeting Aura on locked crates
+          if (isMagnetActiveRef.current) {
+            const now = performance.now();
+            const pulse = 1.0 + 0.08 * Math.sin(now * 0.008 + r * 1.5 + c * 1.5);
+            ctx.save();
+            ctx.scale(pulse, pulse);
+
+            // Pulsing cyan glow border
+            ctx.shadowColor = '#00F0FF';
+            ctx.shadowBlur = 12;
+            ctx.strokeStyle = '#00F0FF';
+            ctx.lineWidth = 2.5;
+            ctx.beginPath();
+            ctx.roundRect(-drawW / 2 - 2, -drawH / 2 - 2, drawW + 4, drawH + 4, 8);
+            ctx.stroke();
+
+            // High-tech corner reticles in gold
+            ctx.strokeStyle = '#FFE853';
+            ctx.lineWidth = 1.5;
+            const rSize = 5;
+            ctx.beginPath();
+            ctx.moveTo(-drawW / 2 - 3, -drawH / 2 - 3 + rSize);
+            ctx.lineTo(-drawW / 2 - 3, -drawH / 2 - 3);
+            ctx.lineTo(-drawW / 2 - 3 + rSize, -drawH / 2 - 3);
+
+            ctx.moveTo(drawW / 2 + 3 - rSize, -drawH / 2 - 3);
+            ctx.lineTo(drawW / 2 + 3, -drawH / 2 - 3);
+            ctx.lineTo(drawW / 2 + 3, -drawH / 2 - 3 + rSize);
+
+            ctx.moveTo(-drawW / 2 - 3, drawH / 2 + 3 - rSize);
+            ctx.lineTo(-drawW / 2 - 3, drawH / 2 + 3);
+            ctx.lineTo(-drawW / 2 - 3 + rSize, drawH / 2 + 3);
+
+            ctx.moveTo(drawW / 2 + 3 - rSize, drawH / 2 + 3);
+            ctx.lineTo(drawW / 2 + 3, drawH / 2 + 3);
+            ctx.lineTo(drawW / 2 + 3, drawH / 2 + 3 - rSize);
+            ctx.stroke();
+
+            // Magnet icon indicator above crate
+            ctx.shadowColor = '#00F0FF';
+            ctx.shadowBlur = 6;
+            ctx.font = 'bold 10px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('🧲', 0, -drawH / 2 - 6);
+
+            ctx.restore();
+          }
         } else if (cell.kind === 'dispenser') {
-          const drawW = 35;
-          const drawH = 33;
-          // Dispenser Container Body
-          ctx.fillStyle = '#261646';
-          ctx.beginPath();
-          ctx.roundRect(-drawW / 2, -drawH / 2, drawW, drawH, 7);
-          ctx.fill();
-          ctx.strokeStyle = '#F5D061';
-          ctx.lineWidth = 2;
-          ctx.stroke();
+          if (cell.animState === 'cave_dispensing') {
+            cell.animTimer = (cell.animTimer || 0) + dt;
+            // Spawn little cyan energy sparkles at frame 6 when slot bursts open with light
+            if (cell.animTimer >= 0.375 && (cell.animTimer - dt) < 0.375) {
+              for (let s = 0; s < 6; s++) {
+                particlesRef.current.push({
+                  x: cx + (Math.random() - 0.5) * 18,
+                  y: cy + 10 + (Math.random() - 0.5) * 6,
+                  vx: (Math.random() - 0.5) * 60,
+                  vy: 10 + Math.random() * 35,
+                  color: '#27C4F4',
+                  size: 3 + Math.random() * 2.5,
+                  alpha: 1,
+                  life: 0,
+                  maxLife: 0.35,
+                  shape: 'sparkle',
+                });
+              }
+            }
+            if (cell.animTimer >= 1.0) {
+              cell.animState = 'idle';
+              cell.animTimer = 0;
+            }
+          }
 
-          // Inner dispenser slot chamber
-          ctx.fillStyle = '#160B2C';
-          ctx.beginPath();
-          ctx.roundRect(-drawW / 2 + 3, -drawH / 2 + 3, drawW - 6, drawH - 6, 5);
-          ctx.fill();
+          const frameIdx = cell.animState === 'cave_dispensing'
+            ? Math.min(15, Math.floor((cell.animTimer || 0) * 16))
+            : 0;
 
-          // Counter badge number
-          ctx.fillStyle = '#FFFFFF';
-          ctx.font = 'bold 15px Fredoka, sans-serif';
-          ctx.textAlign = 'center';
-          ctx.textBaseline = 'middle';
-          ctx.fillText(`${cell.counter || 0}`, 0, -2);
+          const caveImg = caveImgsRef.current[frameIdx];
 
-          // Golden dispenser release slit at the bottom
-          ctx.fillStyle = '#FFE382';
-          ctx.fillRect(-drawW / 2 + 6, drawH / 2 - 5, drawW - 12, 3);
+          const caveW = 64;
+          const caveH = 64;
+          // Positioned so the visible dome spans exactly 35px width (matching a bucket)
+          // Top of dome is at cy - 15px (clean gap below bucket above at cy - 16.5px)
+          const caveOffsetY = 2;
+
+          ctx.save();
+          ctx.translate(0, caveOffsetY);
+
+          if (caveImg && caveImg.complete && caveImg.naturalWidth > 0) {
+            ctx.drawImage(caveImg, -caveW / 2, -caveH / 2, caveW, caveH);
+          } else {
+            // Elegant fallback while loading
+            ctx.fillStyle = '#261646';
+            ctx.beginPath();
+            ctx.roundRect(-18, -16, 36, 33, 7);
+            ctx.fill();
+            ctx.strokeStyle = '#27C4F4';
+            ctx.lineWidth = 1.5;
+            ctx.stroke();
+          }
+
+          // Remaining bucket count number centered right in the middle of the glass dome window
+          // Capsule glass window center is at y=235 in 512 frame -> (235/512 - 0.5) * caveH = -0.041 * 64 = -2.6px
+          const countNum = cell.counter ?? 0;
+          const numY = Math.round(-0.041 * caveH);
+
+          // Glowing holographic counter inside the transparent glass dome
+          ctx.save();
+          if (countNum > 0) {
+            // Subtle glass glow backing circle centered in the glass dome window
+            ctx.fillStyle = 'rgba(12, 148, 192, 0.45)';
+            ctx.beginPath();
+            ctx.arc(0, numY, 10, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.strokeStyle = 'rgba(140, 228, 253, 0.85)';
+            ctx.lineWidth = 1;
+            ctx.stroke();
+
+            // Bright crisp counter text with cyan glow, perfectly centered
+            ctx.shadowColor = '#27C4F4';
+            ctx.shadowBlur = 8;
+            ctx.fillStyle = '#FFFFFF';
+            ctx.font = 'bold 13px Fredoka, sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(`${countNum}`, 0, numY + 0.5);
+          } else {
+            // Empty cave: small dim indicator
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.35)';
+            ctx.font = 'bold 10px Fredoka, sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('0', 0, numY);
+          }
+          ctx.restore();
+
+          ctx.restore();
         } else if (cell.kind === 'block' && cell.color) {
           const config = COLOR_CONFIG[cell.color];
           const drawW = 35;
           const drawH = 33;
 
-          if (cell.animState === 'emptying' && bucketsSheetRef.current && bucketsSheetRef.current.complete) {
+          if (cell.animState === 'emptying') {
             cell.animTimer = (cell.animTimer || 0) + dt;
             const progress = Math.min(1.0, cell.animTimer / 0.26);
-            const frameIdx = Math.min(10, Math.floor(progress * 11));
-            const rowIndex = COLOR_ROW_MAP[cell.color] ?? 0;
-            const colCenterX = BUCKET_COL_CENTERS[frameIdx];
-
-            // Source crop from clean sprite sheet
-            const sx = Math.max(0, colCenterX - 64);
-            const sy = rowIndex * 128;
-            const sw = 128;
-            const sh = 128;
-
-            ctx.drawImage(
-              bucketsSheetRef.current,
-              sx,
-              sy,
-              sw,
-              sh,
-              -drawW / 2,
-              -drawH / 2,
-              drawW,
-              drawH
-            );
 
             // Pop marbles into funnel when halfway through emptying (around frame 4-5)
             if (cell.animTimer >= 0.12 && !cell.burstSpawned) {
@@ -1351,44 +1845,192 @@ export const GameBoard: React.FC<GameBoardProps> = ({ levelNumber = 35 }) => {
               setScore((s) => s + 50);
             }
 
+            // Draw open crate shrinking with bright flash
+            const openImg = crateOpenImgsRef.current[cell.color];
+            const shrink = 1.0 - progress * 0.18;
+            ctx.save();
+            ctx.scale(shrink, shrink);
+
+            if (openImg && openImg.complete && openImg.naturalWidth > 0) {
+              ctx.drawImage(openImg, -drawW / 2, -drawH / 2, drawW, drawH);
+
+              // Progressively pop the balls into the funnel as animation plays
+              const colOffsets = [-7.1, 0, 7.1];
+              const rowOffsets = [-7.2, -0.6, 6.0];
+              const ballR = 3.2;
+              const ballsLeft = Math.max(0, Math.floor((1 - progress) * 9));
+              let count = 0;
+              for (let rIdx = 0; rIdx < 3; rIdx++) {
+                for (let cIdx = 0; cIdx < 3; cIdx++) {
+                  if (count < ballsLeft) {
+                    drawGlossyBall(ctx, colOffsets[cIdx], rowOffsets[rIdx], ballR, cell.color);
+                  }
+                  count++;
+                }
+              }
+            } else {
+              // Fallback
+              ctx.fillStyle = config.hex;
+              ctx.beginPath();
+              ctx.roundRect(-drawW / 2, -drawH / 2, drawW, drawH, 7);
+              ctx.fill();
+            }
+            ctx.restore();
+
             // Once animation completes, clear the cell and update grid
             if (cell.animTimer >= 0.26) {
               const tapRes = tapCell(gridRef.current, r, c);
               if (tapRes.tapped) {
                 const changes = updateGridAfterChange(gridRef.current);
-                if (changes.revealedCells.length > 0) sounds.playTap();
+                if (changes.revealedCells.length > 0) {
+                  sounds.playTap();
+                  changes.revealedCells.forEach(({ r: revR, c: revC, color: revColor }) => {
+                    const rx = GRID_X_CENTERS[revC];
+                    const ry = GRID_Y_CENTERS[revR] + ARENA_SHIFT_Y;
+                    for (let s = 0; s < 5; s++) {
+                      particlesRef.current.push({
+                        x: rx + (Math.random() - 0.5) * 20,
+                        y: ry + (Math.random() - 0.5) * 16,
+                        vx: (Math.random() - 0.5) * 80,
+                        vy: -25 - Math.random() * 45,
+                        color: COLOR_CONFIG[revColor]?.hex || '#FFE494',
+                        size: 3 + Math.random() * 3,
+                        alpha: 1,
+                        life: 0,
+                        maxLife: 0.35,
+                        shape: 'sparkle',
+                      });
+                    }
+                  });
+                }
                 if (changes.dispensedCells.length > 0) sounds.playPopBurst();
               }
             }
-          } else {
-            // Idle / active / popBounced state: render glossy bucket container
-            const bImg = bucketImgsRef.current[cell.color];
-            if (bImg && bImg.complete) {
-              // Solid container backing cavity so no background color ever shines through
-              ctx.fillStyle = config.dark;
-              ctx.beginPath();
-              ctx.roundRect(-drawW / 2 + 3, -drawH / 2 + 3, drawW - 6, drawH - 6, 6);
-              ctx.fill();
+          } else if (cell.animState === 'revealing') {
+            // Unlocking animation: closed crate lid lifts off and fades away, exposing open container underneath
+            cell.animTimer = (cell.animTimer || 0) + dt;
+            const p = Math.min(1.0, cell.animTimer / 0.35);
 
-              // Full-color vibrant glossy bucket image
-              ctx.drawImage(bImg, -drawW / 2, -drawH / 2, drawW, drawH);
+            // 1. Draw open container underneath with its 9 color-matched balls in sockets
+            const openImg = crateOpenImgsRef.current[cell.color];
+            if (openImg && openImg.complete && openImg.naturalWidth > 0) {
+              ctx.drawImage(openImg, -drawW / 2, -drawH / 2, drawW, drawH);
+
+              // 9 color-matched glossy balls in the sockets
+              const colOffsets = [-7.1, 0, 7.1];
+              const rowOffsets = [-7.2, -0.6, 6.0];
+              const ballR = 3.2;
+              for (let rIdx = 0; rIdx < 3; rIdx++) {
+                for (let cIdx = 0; cIdx < 3; cIdx++) {
+                  drawGlossyBall(ctx, colOffsets[cIdx], rowOffsets[rIdx], ballR, cell.color);
+                }
+              }
+            } else {
+              const cfg = COLOR_CONFIG[cell.color];
+              ctx.fillStyle = cfg.hex;
+              ctx.beginPath();
+              ctx.roundRect(-drawW / 2, -drawH / 2, drawW, drawH, 7);
+              ctx.fill();
+            }
+
+            // 2. Animate closed crate lid lifting and popping away!
+            const isMystery = Boolean(cell.isMystery);
+            const closedImg = isMystery
+              ? (crateMysteryImgRef.current || crateClosedImgsRef.current['purple'])
+              : crateClosedImgsRef.current[cell.color];
+
+            if (closedImg && closedImg.complete && closedImg.naturalWidth > 0) {
+              ctx.save();
+              const liftY = -p * 26; // lifts up 26px
+              const popScale = 1.0 + 0.18 * Math.sin(p * Math.PI); // pop scale
+              const alpha = Math.max(0, 1.0 - p * 1.2); // fade out
+              const rot = (c % 2 === 0 ? 0.08 : -0.08) * p; // subtle rotation flip
+
+              ctx.translate(0, liftY);
+              ctx.rotate(rot);
+              ctx.scale(popScale, popScale);
+              ctx.globalAlpha = alpha;
+
+              ctx.drawImage(closedImg, -drawW / 2, -drawH / 2, drawW, 32);
+
+              // If it was a mystery crate, question mark badge is on the lid as it lifts and flies off!
+              if (isMystery) {
+                ctx.shadowColor = '#00E5FF';
+                ctx.shadowBlur = 9;
+                ctx.fillStyle = 'rgba(12, 6, 28, 0.92)';
+                ctx.beginPath();
+                ctx.roundRect(-9, -10, 18, 18, 5);
+                ctx.fill();
+
+                ctx.strokeStyle = 'rgba(0, 240, 255, 0.95)';
+                ctx.lineWidth = 1.5;
+                ctx.stroke();
+
+                ctx.shadowColor = '#FFE853';
+                ctx.shadowBlur = 7;
+                ctx.fillStyle = '#FFFFFF';
+                ctx.font = '900 13px Fredoka, sans-serif';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText('?', 0, -0.5);
+              }
+
+              ctx.restore();
+            }
+
+            // End of reveal animation: container becomes active
+            if (cell.animTimer >= 0.35) {
+              cell.animState = 'idle';
+              cell.animTimer = undefined;
+              cell.isMystery = false;
+            }
+          } else {
+            // Idle / active / popBounced state: render open sci-fi container with 9 color-matched balls in sockets
+            const openImg = crateOpenImgsRef.current[cell.color];
+            if (openImg && openImg.complete && openImg.naturalWidth > 0) {
+              // Draw empty container
+              ctx.drawImage(openImg, -drawW / 2, -drawH / 2, drawW, drawH);
+
+              // Draw the 9 balls inside the container's 9 circular sockets!
+              const colOffsets = [-7.1, 0, 7.1];
+              const rowOffsets = [-7.2, -0.6, 6.0];
+              const ballR = 3.2;
+              for (let rIdx = 0; rIdx < 3; rIdx++) {
+                for (let cIdx = 0; cIdx < 3; cIdx++) {
+                  drawGlossyBall(ctx, colOffsets[cIdx], rowOffsets[rIdx], ballR, cell.color);
+                }
+              }
 
               if (tappable) {
-                // Subtle bright golden outline for exposed active bucket
+                // Subtle bright golden outline for exposed active container
                 ctx.strokeStyle = '#FFE382';
                 ctx.lineWidth = 1.5;
                 ctx.beginPath();
                 ctx.roundRect(-drawW / 2 + 1, -drawH / 2 + 1, drawW - 2, drawH - 2, 7);
                 ctx.stroke();
 
-                // Sparkle dot on exposed active bucket
+                // Sparkle dot on exposed active container
                 ctx.fillStyle = '#FFE382';
                 ctx.beginPath();
                 ctx.arc(drawW / 2 - 4, -drawH / 2 + 5, 2, 0, Math.PI * 2);
                 ctx.fill();
+              } else if (isMagnetActiveRef.current) {
+                // Magnet power-up can target unexposed covered blocks too
+                const now = performance.now();
+                const pulse = 1.0 + 0.08 * Math.sin(now * 0.008 + r * 1.5 + c * 1.5);
+                ctx.save();
+                ctx.scale(pulse, pulse);
+                ctx.shadowColor = '#00F0FF';
+                ctx.shadowBlur = 10;
+                ctx.strokeStyle = '#00F0FF';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.roundRect(-drawW / 2 - 2, -drawH / 2 - 2, drawW + 4, drawH + 4, 8);
+                ctx.stroke();
+                ctx.restore();
               }
             } else {
-              // High-fidelity fallback bucket with 9 glossy marbles
+              // High-fidelity fallback container with 9 glossy marbles
               ctx.fillStyle = config.hex;
               ctx.beginPath();
               ctx.roundRect(-drawW / 2, -drawH / 2, drawW, drawH, 7);
@@ -1408,7 +2050,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({ levelNumber = 35 }) => {
                 for (let mc = 0; mc < 3; mc++) {
                   const mx = -drawW / 2 + 7 + mc * 10;
                   const my = -drawH / 2 + 7 + mr * 9;
-                  drawGlossyBall(ctx, mx, my, 3.5, cell.color);
+                  drawGlossyBall(ctx, mx, my, 3.2, cell.color);
                 }
               }
             }
@@ -1434,33 +2076,39 @@ export const GameBoard: React.FC<GameBoardProps> = ({ levelNumber = 35 }) => {
     ctx.translate(x, y);
     ctx.scale(scale, scale);
 
-    const config = COLOR_CONFIG[color];
+    const ballImg = ballImgsRef.current[color];
+    if (ballImg && ballImg.complete && ballImg.naturalWidth > 0) {
+      // 128x128 image has sphere of radius 53px (106px diameter). 128 / 53 = 2.415
+      const size = radius * 2.42;
+      ctx.drawImage(ballImg, -size / 2, -size / 2, size, size);
+    } else {
+      const config = COLOR_CONFIG[color];
+      const grad = ctx.createRadialGradient(
+        -radius * 0.35,
+        -radius * 0.35,
+        radius * 0.1,
+        0,
+        0,
+        radius
+      );
+      grad.addColorStop(0, config.highlight);
+      grad.addColorStop(0.5, config.hex);
+      grad.addColorStop(1, config.dark);
 
-    const grad = ctx.createRadialGradient(
-      -radius * 0.35,
-      -radius * 0.35,
-      radius * 0.1,
-      0,
-      0,
-      radius
-    );
-    grad.addColorStop(0, config.highlight);
-    grad.addColorStop(0.5, config.hex);
-    grad.addColorStop(1, config.dark);
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.arc(0, 0, radius, 0, Math.PI * 2);
+      ctx.fill();
 
-    ctx.fillStyle = grad;
-    ctx.beginPath();
-    ctx.arc(0, 0, radius, 0, Math.PI * 2);
-    ctx.fill();
+      ctx.strokeStyle = config.border;
+      ctx.lineWidth = 1;
+      ctx.stroke();
 
-    ctx.strokeStyle = config.border;
-    ctx.lineWidth = 1;
-    ctx.stroke();
-
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.75)';
-    ctx.beginPath();
-    ctx.arc(-radius * 0.35, -radius * 0.35, radius * 0.28, 0, Math.PI * 2);
-    ctx.fill();
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.75)';
+      ctx.beginPath();
+      ctx.arc(-radius * 0.35, -radius * 0.35, radius * 0.28, 0, Math.PI * 2);
+      ctx.fill();
+    }
 
     ctx.restore();
   };
@@ -1546,7 +2194,12 @@ export const GameBoard: React.FC<GameBoardProps> = ({ levelNumber = 35 }) => {
         onPointerMove={handlePointerMove}
         onPointerLeave={() => setPauseButtonState('normal')}
         data-testid="marble-sort-canvas"
-        className="w-full h-full touch-none cursor-pointer block"
+        style={{
+          width: '100%',
+          height: '100%',
+          imageRendering: 'auto',
+        }}
+        className="touch-none cursor-pointer block"
       />
 
       {/* Interactive HUD Layer (Accessible, stylable in AI Studio edit panel, with dedicated element IDs) */}
@@ -1645,11 +2298,157 @@ export const GameBoard: React.FC<GameBoardProps> = ({ levelNumber = 35 }) => {
           </span>
         </div>
 
-        {/* Hidden Accessible Controls for Power-ups */}
-        <div className="opacity-0 pointer-events-none">
-          <button onClick={useMagnet} className="pointer-events-auto" aria-label="Use Magnet Power-up">Magnet</button>
-          <button onClick={useShuffle} className="pointer-events-auto" aria-label="Use Shuffle Power-up">Shuffle</button>
-          <button onClick={useGumball} className="pointer-events-auto" aria-label="Use Gumball Power-up">Gumball</button>
+        {/* 3. Level Indicator Pill: Center-top between Pause and Coins */}
+        <div
+          id="level-badge-ui"
+          aria-label={`Level ${currentLevel}`}
+          className="absolute pointer-events-none select-none flex items-center justify-center shadow-lg"
+          style={{
+            top: '8px',
+            left: '50%',
+            transform: 'translateX(-50%)',
+            height: '26px',
+            padding: '0 14px',
+            borderRadius: '9999px',
+            background: 'linear-gradient(180deg, #461484 0%, #1E073D 100%)',
+            border: '1.5px solid #F5D061',
+            boxShadow: '0 2px 6px rgba(0,0,0,0.7), inset 0 1px 2px rgba(255,255,255,0.25)',
+          }}
+        >
+          <span
+            className="font-extrabold text-[#FFE382] text-[11px] tracking-widest uppercase"
+            style={{
+              textShadow: '0 1px 2px rgba(0,0,0,0.9), 0 0 5px rgba(245,208,97,0.7)',
+              fontFamily: "'Fredoka', sans-serif",
+            }}
+          >
+            Level {currentLevel}
+          </span>
+        </div>
+
+        {/* Power-up Bar: Magnet (🧲) & Shuffle (🔀) (Centered below Level Indicator, matching image_11aa8b60.png) */}
+        <div
+          className="absolute flex flex-col items-center select-none"
+          style={{
+            top: '40px',
+            left: '50%',
+            transform: 'translateX(-50%)',
+            zIndex: 35,
+          }}
+        >
+          <div className="flex items-center justify-center gap-2 select-none">
+            {/* 1. Magnet Power-up Button with Spritesheet Animation */}
+            <button
+              id="magnet-powerup-btn"
+              type="button"
+              onClick={toggleMagnet}
+              aria-label={`Magnet Power-up (${powerupCounts.magnet} available)`}
+              className={`pointer-events-auto relative flex items-center justify-center cursor-pointer transition-all duration-150 active:scale-95 ${
+                isMagnetActive
+                  ? 'scale-105 filter drop-shadow-[0_0_10px_#00F0FF]'
+                  : 'hover:brightness-110 filter drop-shadow-[0_3px_6px_rgba(0,0,0,0.7)]'
+              }`}
+              style={{
+                width: '44px',
+                height: '44px',
+                padding: 0,
+                border: 'none',
+                background: 'transparent',
+              }}
+            >
+              {/* Animated Spritesheet Button Graphic */}
+              <div
+                className="w-full h-full select-none pointer-events-none"
+                style={{
+                  backgroundImage: 'url(/assets/magnet_anim_strip.png)',
+                  backgroundSize: '800% 100%',
+                  backgroundPosition: `${(magnetFrame / 7) * 100}% 0%`,
+                  backgroundRepeat: 'no-repeat',
+                }}
+              />
+
+              {/* Badge Count */}
+              <div
+                className="absolute flex items-center justify-center font-extrabold text-white text-[10px] select-none pointer-events-none"
+                style={{
+                  bottom: '-3px',
+                  right: '-3px',
+                  width: '18px',
+                  height: '18px',
+                  borderRadius: '9999px',
+                  background: 'linear-gradient(180deg, #FF4565 0%, #D81E3F 100%)',
+                  border: '1.5px solid #FFFFFF',
+                  boxShadow: '0 1px 4px rgba(0,0,0,0.7)',
+                  fontFamily: "'Fredoka', sans-serif",
+                  lineHeight: 1,
+                }}
+              >
+                {powerupCounts.magnet}
+              </div>
+            </button>
+
+            {/* 2. Shuffle Power-up Button with Spritesheet Animation */}
+            <button
+              id="shuffle-powerup-btn"
+              type="button"
+              onClick={useShuffle}
+              aria-label={`Shuffle Power-up (${powerupCounts.shuffle} available)`}
+              className="pointer-events-auto relative flex items-center justify-center cursor-pointer transition-all duration-150 active:scale-95 hover:brightness-110 filter drop-shadow-[0_3px_6px_rgba(0,0,0,0.7)]"
+              style={{
+                width: '44px',
+                height: '44px',
+                padding: 0,
+                border: 'none',
+                background: 'transparent',
+              }}
+            >
+              {/* Animated Spritesheet Button Graphic */}
+              <div
+                className="w-full h-full select-none pointer-events-none"
+                style={{
+                  backgroundImage: 'url(/assets/shuffle_anim_strip.png)',
+                  backgroundSize: '800% 100%',
+                  backgroundPosition: `${(shuffleFrame / 7) * 100}% 0%`,
+                  backgroundRepeat: 'no-repeat',
+                }}
+              />
+
+              {/* Badge Count */}
+              <div
+                className="absolute flex items-center justify-center font-extrabold text-white text-[10px] select-none pointer-events-none"
+                style={{
+                  bottom: '-3px',
+                  right: '-3px',
+                  width: '18px',
+                  height: '18px',
+                  borderRadius: '9999px',
+                  background: 'linear-gradient(180deg, #FF4565 0%, #D81E3F 100%)',
+                  border: '1.5px solid #FFFFFF',
+                  boxShadow: '0 1px 4px rgba(0,0,0,0.7)',
+                  fontFamily: "'Fredoka', sans-serif",
+                  lineHeight: 1,
+                }}
+              >
+                {powerupCounts.shuffle}
+              </div>
+            </button>
+          </div>
+
+          {/* Active Targeting Mode Instruction Banner */}
+          {isMagnetActive && (
+            <div
+              className="mt-1.5 px-2.5 py-0.5 rounded-full text-center text-[10px] font-bold text-white tracking-wide animate-pulse shadow-lg whitespace-nowrap pointer-events-none select-none"
+              style={{
+                background: 'linear-gradient(90deg, rgba(0,240,255,0.92) 0%, rgba(138,43,226,0.92) 100%)',
+                border: '1.5px solid #FFE853',
+                boxShadow: '0 0 10px rgba(0,240,255,0.7)',
+                fontFamily: "'Fredoka', sans-serif",
+                textShadow: '0 1px 2px rgba(0,0,0,0.8)',
+              }}
+            >
+              ⚡ Tap any locked crate! (Tap 🧲 to cancel)
+            </div>
+          )}
         </div>
       </div>
 

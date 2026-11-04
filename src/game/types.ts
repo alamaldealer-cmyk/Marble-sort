@@ -20,8 +20,9 @@ export interface GridCell {
   color?: MarbleColor; // for block, or hidden color for locked
   counter?: number; // for dispenser (e.g. 3)
   queue?: MarbleColor[]; // dispenser's upcoming blocks
+  isMystery?: boolean; // true if this cell is a mystery bucket with a question mark (?)
   // Visual animation states
-  animState?: 'idle' | 'pressed' | 'bursting' | 'revealing' | 'dispensing' | 'popBounced' | 'blocked' | 'emptying';
+  animState?: 'idle' | 'pressed' | 'bursting' | 'revealing' | 'dispensing' | 'popBounced' | 'blocked' | 'emptying' | 'cave_dispensing';
   animTimer?: number; // 0 to 1
   burstSpawned?: boolean;
   scaleX?: number;
@@ -33,7 +34,7 @@ export interface Brick {
   color: MarbleColor;
   filled: number; // 0..3
   inFlight: number; // balls currently flying to this brick
-  animState?: 'idle' | 'completing';
+  animState?: 'idle' | 'activate' | 'hit_1' | 'hit_2' | 'hit_3' | 'hold_full' | 'vanish' | 'completing';
   animTimer?: number;
 }
 
